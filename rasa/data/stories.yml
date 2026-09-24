@@ -1,0 +1,16 @@
+version: "3.1"
+stories:
+  - story: A study reflection
+    steps:
+      - intent: greet
+      - action: utter_greet
+      - intent: study_pressure
+      - action: utter_study_pressure
+      - intent: thanks
+      - action: utter_thanks
+  - story: A positive moment
+    steps:
+      - intent: feeling_positive
+      - action: utter_feeling_positive
+      - intent: goodbye
+      - action: utter_goodbye

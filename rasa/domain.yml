@@ -1,0 +1,50 @@
+version: "3.1"
+intents:
+  - greet
+  - goodbye
+  - affirm
+  - deny
+  - feeling_positive
+  - feeling_negative
+  - feeling_neutral
+  - stress
+  - anxiety
+  - sleep_problem
+  - study_pressure
+  - loneliness
+  - motivation
+  - thanks
+responses:
+  utter_greet:
+    - text: "Hello. What would you like to reflect on today?"
+  utter_goodbye:
+    - text: "Take care. You can return whenever you like."
+  utter_affirm:
+    - text: "We can explore that together. What feels like a manageable next step?"
+  utter_deny:
+    - text: "That's okay. What would feel more helpful to talk about?"
+  utter_feeling_positive:
+    - text: "What made that moment meaningful for you?"
+  utter_feeling_negative:
+    - text: "That sounds difficult. Would you like to share more about what happened?"
+  utter_feeling_neutral:
+    - text: "I'm here to listen. What has your day been like?"
+  utter_stress:
+    - text: "What is taking up the most space in your mind right now?"
+  utter_anxiety:
+    - text: "We can take this one concern at a time. What has been worrying you?"
+  utter_sleep_problem:
+    - text: "What have your evenings been like lately?"
+  utter_study_pressure:
+    - text: "Would breaking one task into a small next step feel useful?"
+  utter_loneliness:
+    - text: "Feeling disconnected can be hard. What kind of support would feel helpful?"
+  utter_motivation:
+    - text: "What would a manageable version of your goal look like today?"
+  utter_thanks:
+    - text: "You're welcome. We can keep talking whenever you're ready."
+  utter_default:
+    - text: "Could you tell me a little more about what's on your mind?"
+session_config:
+  session_expiration_time: 60
+  carry_over_slots_to_new_session: false

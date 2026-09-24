@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Your space — MindCare{% endblock %}
+{% block body_class %}chat-page{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>{% endblock %}
+{% block navigation %}{% endblock %}{% block footer %}{% endblock %}
+{% block content %}
+<div class="chat-app" data-conversation-id="{{ conversation_id }}">
+  <button class="drawer-overlay" id="drawer-overlay" aria-label="Close conversation menu" tabindex="-1" hidden></button>
+  <aside class="sidebar" id="sidebar" aria-label="Conversations">
+    <div class="sidebar-brand"><a href="{{ url_for('main.index') }}" class="brand"><span class="brand-mark">{{ icon('mark') }}</span>MindCare<span class="brand-dot">.</span></a><button id="close-sidebar" class="icon-button mobile-only" aria-label="Close conversation menu">{{ icon('close') }}</button></div>
+    <button id="new-conversation" class="button new-conversation">{{ icon('plus') }} New conversation</button>
+    <div class="history-heading"><span>YOUR CONVERSATIONS</span><span id="history-count">0</span></div>
+    <nav class="history-list" id="history-list" aria-label="Conversation history"><p class="history-empty">Loading your conversations…</p></nav>
+    <div class="sidebar-bottom"><div class="sidebar-note">{{ icon('mark') }}<p>Small steps.<br>A little more space for you.</p></div><a class="sidebar-about" href="{{ url_for('main.about') }}">About MindCare {{ icon('arrow') }}</a><div class="account-row"><span class="user-avatar">{{ current_user.full_name[0]|upper }}</span><div class="account-details"><strong>{{ current_user.full_name }}</strong><span>@{{ current_user.username }}</span></div><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="icon-button" title="Log out" aria-label="Log out">{{ icon('logout') }}</button></form></div></div>
+  </aside>
+  <main id="main" class="chat-main">
+    <header class="chat-topbar"><div class="chat-title-wrap"><button id="open-sidebar" class="icon-button mobile-only" aria-label="Open conversation menu" aria-expanded="false" aria-controls="sidebar">{{ icon('menu') }}</button><div><h1 id="conversation-title">Your space to reflect</h1><span>One conversation at a time</span></div></div><a class="support-status" href="{{ url_for('main.about') }}#safety"><span class="status-dot"></span> Wellness support</a></header>
+    <div class="chat-scroll" id="chat-scroll">
+      <section class="empty-state" id="empty-state"><div class="empty-orbit"><span class="empty-emblem">{{ icon('mark') }}</span></div><span class="eyebrow">TAKE A BREATH. YOU'RE HERE.</span><h2>How are you feeling today?</h2><p>You can share what's on your mind.<br>There's no right place to start.</p>
+        <div class="suggestion-grid"><button data-suggestion="I've been feeling stressed lately."><span class="suggestion-icon lilac">{{ icon('wave') }}</span><strong>A lot on my mind</strong><span>I've been feeling stressed lately.</span>{{ icon('arrow', 'suggestion-arrow') }}</button><button data-suggestion="I had a really good day."><span class="suggestion-icon mint">{{ icon('sun') }}</span><strong>A moment worth sharing</strong><span>I had a really good day.</span>{{ icon('arrow', 'suggestion-arrow') }}</button><button data-suggestion="I haven't been sleeping well."><span class="suggestion-icon blue">{{ icon('moon') }}</span><strong>Looking for some rest</strong><span>I haven't been sleeping well.</span>{{ icon('arrow', 'suggestion-arrow') }}</button><button data-suggestion="I just want to talk."><span class="suggestion-icon peach">{{ icon('chat') }}</span><strong>Just a little conversation</strong><span>I just want to talk.</span>{{ icon('arrow', 'suggestion-arrow') }}</button></div>
+        <div class="empty-note">{{ icon('shield') }} A thoughtful space, at your own pace.</div>
+      </section>
+      <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation messages"></div>
+    </div>
+    <div class="composer-area"><div class="toast" id="chat-error" role="alert" hidden></div><form id="chat-form" class="composer"><label class="sr-only" for="message-input">Your message</label><textarea id="message-input" rows="1" maxlength="4000" placeholder="What's on your mind?" required></textarea><div class="composer-bottom"><span class="composer-hint">A little reflection can go a long way.</span><span id="character-count" hidden>0 / 4,000</span><button type="submit" id="send-button" aria-label="Send message" disabled>{{ icon('send') }}</button></div></form><p class="composer-disclaimer">MindCare offers wellness support, not professional care. <a href="{{ url_for('main.about') }}#safety">Need urgent help?</a></p></div>
+  </main>
+</div>
+<dialog id="delete-dialog"><form method="dialog"><span class="eyebrow">YOUR CONVERSATIONS</span><h2>Delete this conversation?</h2><p>Its messages will be permanently removed from your history. This can't be undone.</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Keep conversation</button><button class="button button-danger" value="delete">Delete conversation</button></div></form></dialog>
+<noscript><div class="noscript-notice">Enable JavaScript to use the chat dashboard.</div></noscript>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends 'base.html' %}{% from '_auth_fields.html' import field %}
+{% block title %}Create your account — MindCare{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/auth.js') }}" defer></script>{% endblock %}
+{% block content %}<main id="main" class="auth-page register-page"><div class="auth-heading"><span class="auth-emblem">{{ icon('mark') }}</span><span class="eyebrow">A SMALL STEP FOR YOURSELF</span><h1>Make room for you.</h1><p>Create your account. Start wherever you are.</p></div><section class="auth-card" aria-label="Create an account"><form method="post" data-auth-form><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  {% if errors.get('form') %}<div class="form-error" role="alert">{{ errors.form }}</div>{% endif %}
+  <div class="form-row">{{ field('full_name', 'Full name', autocomplete='name', placeholder='Your name', errors=errors, maxlength='100') }}{{ field('username', 'Username', autocomplete='username', placeholder='your_username', hint='3–40 letters, numbers, or underscores.', errors=errors, minlength='3', maxlength='40') }}</div>
+  {{ field('email', 'Email address', 'email', 'email', 'you@example.com', errors=errors, maxlength='254') }}
+  {{ field('password', 'Password', 'password', 'new-password', 'Create a password', hint='Use at least 8 characters (maximum 128).', errors=errors, minlength='8', maxlength='128') }}
+  {{ field('confirm_password', 'Confirm password', 'password', 'new-password', 'Enter your password again', errors=errors, minlength='8', maxlength='128') }}
+  <button class="button button-primary auth-submit" type="submit" data-loading="Creating your account…">Create account {{ icon('arrow') }}</button>
+  <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+</form></section><p class="auth-footnote">By creating an account, you acknowledge our <a href="{{ url_for('main.about') }}#privacy">privacy & safety information</a>.</p></main>{% endblock %}

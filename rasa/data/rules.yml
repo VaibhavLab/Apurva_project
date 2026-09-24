@@ -1,0 +1,62 @@
+version: "3.1"
+rules:
+  - rule: Greet
+    steps:
+      - intent: greet
+      - action: utter_greet
+  - rule: Goodbye
+    steps:
+      - intent: goodbye
+      - action: utter_goodbye
+  - rule: Acknowledge thanks
+    steps:
+      - intent: thanks
+      - action: utter_thanks
+  - rule: Affirm
+    steps:
+      - intent: affirm
+      - action: utter_affirm
+  - rule: Decline
+    steps:
+      - intent: deny
+      - action: utter_deny
+  - rule: Positive reflection
+    steps:
+      - intent: feeling_positive
+      - action: utter_feeling_positive
+  - rule: Negative reflection
+    steps:
+      - intent: feeling_negative
+      - action: utter_feeling_negative
+  - rule: Neutral reflection
+    steps:
+      - intent: feeling_neutral
+      - action: utter_feeling_neutral
+  - rule: Stress support
+    steps:
+      - intent: stress
+      - action: utter_stress
+  - rule: Worry support
+    steps:
+      - intent: anxiety
+      - action: utter_anxiety
+  - rule: Sleep reflection
+    steps:
+      - intent: sleep_problem
+      - action: utter_sleep_problem
+  - rule: Study reflection
+    steps:
+      - intent: study_pressure
+      - action: utter_study_pressure
+  - rule: Connection
+    steps:
+      - intent: loneliness
+      - action: utter_loneliness
+  - rule: Motivation
+    steps:
+      - intent: motivation
+      - action: utter_motivation
+  - rule: Uncertain intent
+    steps:
+      - intent: nlu_fallback
+      - action: utter_default

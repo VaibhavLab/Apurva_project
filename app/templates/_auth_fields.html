@@ -1,0 +1,11 @@
+{% from '_icons.html' import icon %}
+{% macro field(name, label, type='text', autocomplete='', placeholder='', hint='', errors={}, minlength='', maxlength='') %}
+<div class="form-field">
+  <label for="{{ name }}">{{ label }}</label>
+  <div class="input-wrap {% if type == 'password' %}password-wrap{% endif %}">
+    <input id="{{ name }}" name="{{ name }}" type="{{ type }}" autocomplete="{{ autocomplete }}" placeholder="{{ placeholder }}" required {% if minlength %}minlength="{{ minlength }}"{% endif %} {% if maxlength %}maxlength="{{ maxlength }}"{% endif %} {% if type != 'password' %}value="{{ request.form.get(name, '') }}"{% endif %} {% if errors.get(name) %}aria-invalid="true"{% endif %} {% if hint or errors.get(name) %}aria-describedby="{{ name }}-hint"{% endif %}>
+    {% if type == 'password' %}<button type="button" class="password-toggle" data-password="{{ name }}" aria-label="Show {{ label|lower }}" aria-pressed="false">{{ icon('eye') }}</button>{% endif %}
+  </div>
+  {% if hint or errors.get(name) %}<p id="{{ name }}-hint" class="field-hint {% if errors.get(name) %}field-error{% endif %}">{{ errors.get(name) or hint }}</p>{% endif %}
+</div>
+{% endmacro %}

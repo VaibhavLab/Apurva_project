@@ -1,0 +1,86 @@
+version: "3.1"
+nlu:
+  - intent: greet
+    examples: |
+      - hello
+      - hi there
+      - good morning
+      - hey
+  - intent: goodbye
+    examples: |
+      - goodbye
+      - bye for now
+      - see you later
+      - I am leaving now
+  - intent: affirm
+    examples: |
+      - yes
+      - that sounds good
+      - I would like that
+      - sure
+  - intent: deny
+    examples: |
+      - no
+      - not right now
+      - I do not want that
+      - that does not feel helpful
+  - intent: feeling_positive
+    examples: |
+      - I feel amazing today
+      - I had a really good day
+      - I am happy about my progress
+      - I feel grateful
+  - intent: feeling_negative
+    examples: |
+      - I feel terrible today
+      - It has been a difficult day
+      - I am feeling sad
+      - Nothing went well today
+  - intent: feeling_neutral
+    examples: |
+      - I went to college today
+      - I just want to talk
+      - Today was an ordinary day
+      - I am thinking about my week
+  - intent: stress
+    examples: |
+      - I am feeling stressed lately
+      - Everything feels overwhelming
+      - There is too much pressure at work
+      - I have too many deadlines
+  - intent: anxiety
+    examples: |
+      - I feel anxious
+      - I cannot stop worrying
+      - I feel nervous about tomorrow
+      - I am feeling panicky
+  - intent: sleep_problem
+    examples: |
+      - I cannot sleep
+      - I have not been sleeping well
+      - I keep waking up at night
+      - I lie awake for hours
+  - intent: study_pressure
+    examples: |
+      - I am stressed about my exams
+      - I have too many assignments
+      - I cannot focus on studying
+      - College work is overwhelming
+  - intent: loneliness
+    examples: |
+      - I feel lonely
+      - I feel disconnected from everyone
+      - I have been alone all week
+      - I miss my friends
+  - intent: motivation
+    examples: |
+      - I need motivation
+      - I cannot get started on my goals
+      - I keep procrastinating
+      - I want to build better habits
+  - intent: thanks
+    examples: |
+      - thanks
+      - thank you for listening
+      - that was helpful
+      - I appreciate your support

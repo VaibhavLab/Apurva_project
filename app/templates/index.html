@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<main id="main">
+  <section class="hero container">
+    <div class="hero-copy"><span class="eyebrow"><span class="status-dot"></span> YOUR SPACE TO SLOW DOWN</span>
+      <h1>Talk. Reflect.<br><span>Feel Supported.</span></h1>
+      <p class="hero-description">A private conversational space designed to help you reflect on how you're feeling and discover useful wellness resources.</p>
+      <div class="hero-actions"><a class="button button-primary" href="{{ url_for('chat.dashboard') if current_user.is_authenticated else url_for('auth.register') }}">Start chatting {{ icon('arrow') }}</a><a class="button button-secondary" href="{{ url_for('main.about') }}">Learn more</a></div>
+      <div class="hero-assurances"><span>{{ icon('shield') }} Account-protected conversations</span><span class="separator-dot">·</span><span>At your own pace</span></div>
+    </div>
+    <div class="hero-art" aria-label="Illustration of a supportive MindCare conversation">
+      <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit orbit-three"></div>
+      <div class="orb"><div class="orb-inner">{{ icon('mark') }}</div></div>
+      <span class="art-caption">A LITTLE PAUSE. A FRESH PERSPECTIVE.</span>
+      <div class="floating-note note-top">{{ icon('spark') }} Small steps count, too.</div>
+      <div class="sample-chat"><div class="sample-label"><span class="mini-mark">{{ icon('mark') }}</span><strong>MindCare</strong><span>HERE TO LISTEN</span></div><p>You don't have to figure it all out today.<br>Let's start with what's on your mind.</p><div class="sample-bottom"><span class="status-dot"></span> One conversation at a time</div></div>
+    </div>
+  </section>
+  <section class="features-section container"><div class="section-heading"><div><span class="eyebrow">A LITTLE SUPPORT GOES A LONG WAY</span><h2>Made for your everyday wellbeing.</h2></div><p>Whatever today looks like,<br>there's room for you here.</p></div>
+    <div class="feature-grid">
+      <article class="feature-card"><span class="feature-icon lilac">{{ icon('wave') }}</span><span class="feature-number">01</span><h3>Sentiment awareness</h3><p>MindCare analyzes the emotional tone of your messages to better understand the conversation.</p><span class="feature-caption">A moment to understand</span></article>
+      <article class="feature-card"><span class="feature-icon blue">{{ icon('chat') }}</span><span class="feature-number">02</span><h3>Supportive conversations</h3><p>Receive thoughtful, non-judgmental responses designed to support reflection.</p><span class="feature-caption">A space to be yourself</span></article>
+      <article class="feature-card"><span class="feature-icon mint">{{ icon('play') }}</span><span class="feature-number">03</span><h3>Helpful resources</h3><p>Discover wellness, relaxation, mindfulness and self-care resources based on your conversation.</p><span class="feature-caption">A small step forward</span></article>
+    </div>
+  </section>
+  <section class="how-section container"><div class="section-heading"><div><span class="eyebrow">SIMPLE BY DESIGN</span><h2>Your first step starts here.</h2></div><span class="section-note">HOW IT WORKS</span></div><div class="steps">
+    {% for title, text in [('Create account', 'A space that’s yours to return to.'), ('Start conversation', 'Share as much or as little as you like.'), ('Sentiment analysis', 'Reflect on the tone of your words.'), ('Receive support & resources', 'Find a helpful next step for your day.')] %}<div class="step"><span class="step-number">0{{ loop.index }}</span><h3>{{ title }}</h3><p>{{ text }}</p></div>{% endfor %}
+  </div></section>
+  <section class="disclaimer container">{{ icon('shield') }}<p>MindCare is an educational wellness-support application. It does not provide medical diagnosis, professional therapy, or emergency mental-health services.</p><a href="{{ url_for('main.about') }}#safety">Our approach {{ icon('arrow') }}</a></section>
+</main>
+{% endblock %}
