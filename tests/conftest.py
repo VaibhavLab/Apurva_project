@@ -10,7 +10,7 @@ from app.extensions import db
 def app():
     application = create_app({"TESTING": True, "SECRET_KEY": "test-only-not-for-deployment",
                               "SQLALCHEMY_DATABASE_URI": "sqlite://", "SESSION_COOKIE_SECURE": False,
-                              "PRODUCTION": False})
+                              "PRODUCTION": False, "GEMINI_ENABLED": False, "VOICE_ENABLED": False, "GEMINI_API_KEY": ""})
     yield application
     with application.app_context():
         db.session.remove()

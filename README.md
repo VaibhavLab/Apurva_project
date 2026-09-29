@@ -4,10 +4,13 @@ MindCare is a complete, local-first academic wellness-support application built 
 
 ## Overview
 
-The working demo uses VADER sentiment analysis, a lightweight English topic classifier, a separate safety screen, and a modular built-in chatbot. No paid API, remote AI service, or large model download is required. MySQL is the primary project database; SQLite is an automatic convenience fallback.
+The working demo uses VADER sentiment analysis, a lightweight English topic classifier, a separate safety screen, and a modular built-in chatbot. No paid API or large model download is required for local text mode. Optional Google Gemini adds AI replies, microphone dictation, and spoken voice turns after user consent. See [Gemini and voice setup](docs/VOICE.md). MySQL is the primary project database; SQLite is an automatic convenience fallback.
 
 ## Features
 
+- Gemini text AI with bounded context, external-processing consent, and labelled local fallback.
+- Editable microphone dictation and turn-based voice conversation with captions, playback, cancellation, and speech-only retry.
+- Durable chat request IDs, short database transactions, and an additive SQLite/MySQL migration.
 - Responsive dark interface, landing page, account forms, About page, and branded error pages.
 - Session-based registration, login, logout, password hashing, form validation, and password visibility controls.
 - Asynchronous chat with immediate user messages, typing animation, keyboard shortcuts, an expanding composer, and recoverable errors.
@@ -25,6 +28,11 @@ Actual screenshots captured by `scripts/browser_smoke.py` using an isolated test
 ![Conversation and resources](docs/screenshots/chat-resources.png)
 
 [View the mobile dashboard](docs/screenshots/mobile-chat.png).
+
+Voice screenshots use simulated microphone input and mocked Gemini responses:
+
+![Voice conversation](docs/screenshots/voice-conversation.png)
+[Mobile voice controls](docs/screenshots/voice-mobile.png).
 
 ## System Architecture
 
@@ -48,16 +56,16 @@ SQLAlchemy
 MySQL (primary) / SQLite (local fallback)
 ```
 
-The application factory wires configuration, extensions, models, and four blueprints. Authentication, intent detection, safety, sentiment, recommendations, and reply selection each have their own service. Route files coordinate the request without embedding response logic.
+The application factory wires configuration, extensions, models, and five blueprints. Authentication, intent detection, safety, sentiment, recommendations, and reply selection each have their own service. Route files coordinate the request without embedding response logic.
 
 ## How It Works
 
 1. Sign in and create a conversation, or send a first message to create one automatically.
 2. The API validates the message and verifies that the conversation belongs to the authenticated user.
-3. Store/flush the user message, screen safety, analyze sentiment, and detect the topic.
-4. Generate a safety response when flagged; otherwise select a sentiment-aware response and relevant resources.
-5. Save both messages, analysis, resources, and conversation timestamp in one transaction. A failed turn rolls back completely.
-6. Return JSON and update the page without a reload. The first meaningful message supplies a short topic title.
+3. Reserve the request ID briefly, then screen safety, analyze sentiment, and detect the topic without holding a database transaction during provider calls.
+4. Use the deterministic safety response when flagged. Otherwise use consented Gemini or the local engine, then select relevant resources. Voice transcription precedes the local safety check.
+5. Recheck ownership and existence, then atomically save both messages, analysis, resources, timestamp and retry receipt. A failed turn saves no partial message pair.
+6. Return JSON and update the page. Voice mode separately synthesizes the saved bot reply; speech failure leaves text intact. The first meaningful message supplies a short topic title.
 
 ### Endpoints
 
@@ -72,7 +80,7 @@ The application factory wires configuration, extensions, models, and four bluepr
 | GET/DELETE | `/api/conversations/<id>` | Read/delete an owned conversation |
 | POST | `/api/chat` | Submit `{ "conversation_id": 1, "message": "I feel stressed about exams." }` |
 
-Mutation requests need the CSRF token supplied by the page, in the form field `csrf_token` or the `X-CSRFToken` request header. API authentication failures return JSON with HTTP 401; other users' conversations return 404. Inputs are limited to 4,000 characters and requests to 32 KiB.
+Mutation requests need the CSRF token supplied by the page, in the form field `csrf_token` or the `X-CSRFToken` request header. API authentication failures return JSON with HTTP 401; other users' conversations return 404. Inputs are limited to 4,000 characters and ordinary JSON requests to 32 KiB. Voice multipart uploads use a separate bounded limit. [Voice API, privacy, retry and concurrency details](docs/VOICE.md#audio-and-api).
 
 ## Sentiment Analysis
 
@@ -90,7 +98,7 @@ Thresholds are centralized in the service. A compound score is **not a calibrate
 
 `IntentService` recognizes greetings, thanks, and goodbyes, plus study, sleep, anxiety, stress, sadness, loneliness, anger, motivation, mindfulness, relaxation, and general topics. Specific topics take precedence over broad ones: an exam-stress message receives study resources.
 
-`ChatbotService` combines sentiment-aware openings with topic responses. Variations rotate by conversation turn to reduce repetition. It makes no diagnoses or medication recommendations and does not call an external language model. Conversation turn count influences variation; this is not advanced conversational memory.
+`ChatbotService` combines sentiment-aware openings with topic responses. Variations rotate by conversation turn to reduce repetition. This local engine makes no external model calls. Optional Gemini replies use a server-controlled wellness instruction and at most 12 prior messages / 12,000 history characters from the selected conversation. Provider errors use a visibly labelled local fallback. The local safety branch remains authoritative.
 
 ## Video Recommendation System
 
@@ -100,7 +108,7 @@ Searches favor recognizable sources where possible. Individual search results ar
 
 ## Safety Handling
 
-Safety screening is separate from sentiment. For example, “I failed my exam” is normal risk, while explicit immediate self-harm intent triggers a safety-focused message. That branch never runs the ordinary recommendation service.
+Safety screening is separate from sentiment. For example, “I failed my exam” is normal risk, while explicit immediate self-harm intent triggers a safety-focused message. That branch never runs ordinary recommendations or Gemini conversational generation. Audio must first be sent to Google for transcription before this local text check can run.
 
 The response encourages immediate local emergency/crisis support and contacting a trusted person. It explicitly states that the chatbot cannot provide emergency assistance. General guidance was checked against the [NHS urgent mental health support guidance](https://www.nhs.uk/every-mind-matters/urgent-support/); country-specific phone numbers are not assumed.
 
@@ -108,7 +116,7 @@ This is an academic English phrase matcher, **not clinical triage**. It can miss
 
 ## Technology Stack
 
-Python 3.11+ (verified here on 3.14), Flask 3.1, Flask-SQLAlchemy, SQLAlchemy 2, Flask-Login, Flask-WTF, Werkzeug, MySQL/PyMySQL, Jinja2, HTML5, CSS3, vanilla JavaScript, VADER, and pytest. Optional Playwright provides browser acceptance checks. Optional Rasa 3-format configuration supports NLU experimentation.
+Python 3.11+ (verified here on 3.14), Flask 3.1, Flask-SQLAlchemy, SQLAlchemy 2, Flask-Login, Flask-WTF, Werkzeug, MySQL/PyMySQL, Jinja2, HTML5, CSS3, vanilla JavaScript, VADER, the official google-genai SDK, and pytest. Optional Playwright provides browser acceptance checks. Optional Rasa 3-format configuration supports NLU experimentation.
 
 ## Project Structure
 
@@ -116,7 +124,7 @@ Python 3.11+ (verified here on 3.14), Flask 3.1, Flask-SQLAlchemy, SQLAlchemy 2,
 app/
   __init__.py                 Application factory, initialization, error handling
   config.py / extensions.py  Environment, database, login, CSRF
-  models/                    User, Conversation, Message
+  models/                    User, Conversation, Message, ChatRequest
   routes/                    Public pages, authentication, chat, conversations
   services/                  Authentication, safety, sentiment, intent, bot, resources
   data/recommendations.py    Curated resource search topics
@@ -144,9 +152,11 @@ schema.sql                   Optional MySQL DDL matching ORM tables
 | `conversations` | `id`, indexed `user_id`, `title`, `created_at`, `updated_at` |
 | `messages` | `id`, indexed `conversation_id`, `sender`, `content`, `sentiment`, `sentiment_score`, `risk_level`, `created_at` |
 
+The chat_requests table stores conversation-scoped unique request IDs, payload fingerprints, leases, status and completed response receipts. Messages also include input_mode and provider metadata.
+
 Messages additionally store `topic` and JSON `recommendations` for faithful history rendering. User → conversations and conversation → messages are one-to-many relationships. Conversation deletion cascades through SQLAlchemy; the message foreign key also declares `ON DELETE CASCADE`. Timestamps are UTC, serialized with a `Z` suffix. Identifiers are normalized to lowercase; passwords are never serialized.
 
-Tables are automatically created at startup. `create_all()` creates missing tables; it does not migrate existing columns. Use migrations for future schema changes to a populated database.
+Tables are automatically created at startup. `create_all()` creates missing tables; it does not migrate existing columns. For an existing installation, stop workers and run the upgrade-db command below before restarting. This additive migration preserves history; see [migration instructions](docs/VOICE.md#setup).
 
 ## Installation
 
@@ -173,7 +183,7 @@ Execute the following, replacing the example password with your own:
 ```sql
 CREATE DATABASE mental_health_chatbot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'mindcare'@'localhost' IDENTIFIED BY 'replace-with-your-password';
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, INDEX, REFERENCES
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
 ON mental_health_chatbot.* TO 'mindcare'@'localhost';
 ```
 
@@ -204,6 +214,20 @@ MySQL connectivity was **not exercised in this environment**, which has no MySQL
 ```
 
 For the quickest local demo, leave `.env` absent: SQLite is selected, and a random development signing key is stored in ignored `instance/development-secret`. Login sessions expire after eight hours. `.env`, the local secret, database files, and logs are ignored by Git.
+
+## Gemini, Microphone and Voice Setup
+
+See [the complete voice guide](docs/VOICE.md) for key creation, model availability, HTTPS requirements, privacy, costs, API limits and troubleshooting. Both feature flags default off; no key is needed for local text chat.
+
+In the ignored .env file, configure GEMINI_API_KEY, GEMINI_ENABLED=true and VOICE_ENABLED=true, then restart. Separate documented defaults are gemini-flash-latest for text/transcription, gemini-3.1-flash-tts-preview for speech, and Kore for voice. Model/account access and quotas vary; usage is not promised free or unlimited.
+
+Before starting an existing database, run:
+
+```powershell
+.\.venv\Scripts\python.exe -m flask --app run:app upgrade-db
+```
+
+Use **Mic · Dictate** for an editable draft, or **Voice conversation** to record a turn, display its transcript/reply, and play speech. Press **Speak again** for each next turn. This is turn-based conversation, not Gemini Live streaming. **Stop / cancel** and **End voice** release microphone/playback resources. Sent work may still finish on the server; check history after cancelling.
 
 ## Running the Application
 
@@ -236,9 +260,10 @@ Optional real-browser acceptance checks:
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 .\.venv\Scripts\python.exe scripts/browser_smoke.py
+.\.venv\Scripts\python.exe scripts/voice_browser_smoke.py
 ```
 
-The script uses installed Chrome on Windows. If Chrome is absent, first run `.\.venv\Scripts\python.exe -m playwright install chromium`. It launches an isolated temporary app at `127.0.0.1:5051`, generates a random test password, checks desktop/mobile behavior, and saves screenshots. It does not leave a demo account in the working database. Port 5051 must be available.
+The script uses installed Chrome on Windows. If Chrome is absent, first run `.\.venv\Scripts\python.exe -m playwright install chromium`. It launches an isolated temporary app at `127.0.0.1:5051`, generates a random test password, checks desktop/mobile behavior, and saves screenshots. It does not leave a demo account in the working database. Ports 5051 and 5052 must be available. The voice script uses deterministic simulated audio and mocked Gemini while exercising actual browser worklets, resampling, multipart validation and playback. Tests include consent, safety overrides, provider failures, ownership, idempotent retries, migration preservation, deletion races, autoplay recovery, stale responses and microphone cleanup. No real provider/device call is implied.
 
 ## Rasa Configuration
 
@@ -259,15 +284,16 @@ For integration experiments, `IntentService.detect_topic` is the seam for mappin
 
 ## Future Improvements
 
-Not implemented: transformer emotion classification, multilingual conversations, speech input, text-to-speech, mood charts, a counselor directory, LLM integration, advanced Rasa dialogue management, personalized recommendation history, and a mobile application.
+Not implemented: transformer emotion classification, multilingual conversations, Gemini Live streaming, mood charts, a counselor directory, advanced Rasa dialogue management, personalized recommendation history, and a mobile application.
 
 ## Limitations
 
 - English, keyword/lexicon-based analysis can misread negation, sarcasm, mixed emotions, and context. The small optional Rasa dataset is a training example, not a validated model.
 - Safety screening is incomplete and cannot assess a person's safety or contact emergency services.
 - Resources link to changing external search results, not individually vetted videos.
-- This is a single-process academic demo, not a clinical or production service. It does not provide password recovery, email verification, distributed rate limiting, encryption at rest, schema migrations, or full multi-tab concurrent message coordination.
+- This is a single-process academic demo, not a clinical or production service. It does not provide password recovery, email verification, distributed rate limiting, encryption at rest, or automatic cross-tab UI synchronization. The additive voice migration and database-backed turn serialization are implemented.
 - Database administrators can read stored conversations. Avoid real sensitive data. Deletion affects the active database; operators control any backups.
+- No Gemini key was configured during implementation: real Google calls and physical microphone/speaker checks remain unverified. Preview model availability, TTS quality and non-Chrome device behavior require manual validation.
 - MySQL is configured and its DDL is checked, but live MySQL and Rasa runtime validation remain environment-dependent.
 - VADER 3.3.2 emits upstream `codecs.open` deprecation warnings on Python 3.14; analysis and tests still pass.
 

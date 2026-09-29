@@ -27,7 +27,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="mindcare-browser-") as temporary:
         app = create_app({"TESTING": True, "SECRET_KEY": secrets.token_hex(32), "PRODUCTION": False,
                           "SQLALCHEMY_DATABASE_URI": "sqlite:///" + str(Path(temporary) / "browser.db").replace("\\", "/"),
-                          "SESSION_COOKIE_SECURE": False})
+                          "SESSION_COOKIE_SECURE": False, "GEMINI_ENABLED": False, "VOICE_ENABLED": False, "GEMINI_API_KEY": ""})
         server = make_server("127.0.0.1", 5051, app, request_handler=QuietHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -62,6 +62,8 @@ def main():
                 expect(page.locator("#new-conversation")).to_be_enabled()
                 page.screenshot(path=str(screenshots / "chat-empty.png"), full_page=True)
 
+                # Older / insecure-context browsers lack randomUUID; local text must still work.
+                page.evaluate("() => { crypto.randomUUID = undefined; }")
                 page.get_by_role("button", name="A lot on my mind").click()
                 expect(page.get_by_label("Your message")).to_have_value("I've been feeling stressed lately.")
                 pending_requests = []

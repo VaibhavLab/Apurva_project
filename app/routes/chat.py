@@ -1,18 +1,13 @@
-from flask import Blueprint, abort, current_app, jsonify, render_template, request
-from flask_login import login_required
+import re
+import uuid
 
-from app.extensions import db
-from app.models import Message
-from app.models.user import utcnow
+from flask import Blueprint, abort, current_app, jsonify, render_template, request, session
+from flask_login import current_user, login_required
+
 from app.routes.conversations import owned_conversation
-from app.services.chatbot_service import ChatbotService
-from app.services.intent_service import IntentService
-from app.services.recommendation_service import RecommendationService
-from app.services.safety_service import SafetyService
-from app.services.sentiment_service import SentimentService
+from app.services.chat_processing_service import ChatProcessingService
 
 chat_bp = Blueprint("chat", __name__)
-sentiment_service = SentimentService()
 
 
 @chat_bp.get("/chat")
@@ -39,31 +34,12 @@ def send_message():
     conversation_id = payload.get("conversation_id")
     if type(conversation_id) is not int or conversation_id < 1:
         return jsonify(success=False, error="Choose or create a conversation first."), 400
-    conversation = owned_conversation(conversation_id, lock=True)
-    turn = db.session.scalar(db.select(db.func.count(Message.id)).where(
-        Message.conversation_id == conversation.id, Message.sender == "bot"))
-    user_message = Message(conversation=conversation, sender="user", content=text)
-    db.session.add(user_message)
-    # Flush records the user message first; a single commit keeps the entire turn atomic.
-    db.session.flush()
-    risk = SafetyService().analyze(text)["risk_level"]
-    sentiment = sentiment_service.analyze(text)
-    intent_service = IntentService()
-    topic = intent_service.detect_topic(text)
-    reply = ChatbotService().respond(text, sentiment, topic, risk, turn)
-    recommendations = [] if risk == "high" else RecommendationService().recommend(topic, sentiment["label"])
-    user_message.sentiment = sentiment["label"]
-    user_message.sentiment_score = sentiment["score"]
-    user_message.risk_level = risk
-    user_message.topic = topic
-    bot_message = Message(conversation=conversation, sender="bot", content=reply,
-                          sentiment=sentiment["label"], sentiment_score=sentiment["score"],
-                          risk_level=risk, topic=topic, recommendations=recommendations)
-    db.session.add(bot_message)
-    if conversation.title == "New Conversation" and intent_service.detect_intent(text) not in {"greet", "thanks", "goodbye"}:
-        conversation.title = intent_service.title(text, sentiment["label"], risk)
-    conversation.updated_at = utcnow()
-    db.session.commit()
-    return jsonify(success=True, conversation_id=conversation.id, title=conversation.title,
-                   reply=reply, sentiment=sentiment, risk_level=risk, topic=topic,
-                   recommendations=recommendations, messages=[user_message.to_dict(), bot_message.to_dict()])
+    request_key = payload.get("request_id", uuid.uuid4().hex)
+    if not isinstance(request_key, str) or not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", request_key):
+        return jsonify(success=False, error="Use a valid request ID."), 400
+    input_mode = payload.get("input_mode", "text")
+    if input_mode not in ("text", "voice") or type(payload.get("use_gemini", True)) is not bool:
+        abort(400)
+    use_gemini = bool(session.get("gemini_consent_v1") and payload.get("use_gemini", True))
+    result = ChatProcessingService().process(conversation_id, text, request_key, input_mode, use_gemini, current_user.id)
+    return jsonify(result)

@@ -10,6 +10,7 @@ class Conversation(db.Model):
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     user = db.relationship("User", back_populates="conversations")
+    requests = db.relationship("ChatRequest", back_populates="conversation", cascade="all, delete-orphan")
     messages = db.relationship("Message", back_populates="conversation", cascade="all, delete-orphan",
                                order_by="Message.id")
 

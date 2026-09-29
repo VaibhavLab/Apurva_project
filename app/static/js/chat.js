@@ -16,6 +16,18 @@
   const request = window.mindcare.request;
   let conversationId = Number(app.dataset.conversationId) || null;
   let busy = false;
+  let voiceBusy = false;
+  let epoch = 0;
+  let activeRequest = null;
+  let retry = null;
+  function cancelActivity() {
+    epoch++;
+    activeRequest?.abort();
+    window.mindcare.voice?.cancel(false);
+    busy = false;
+    voiceBusy = false;
+    setBusy(false);
+  }
   let deleteId = null;
   let conversations = [];
 
@@ -45,10 +57,9 @@
   };
   function setBusy(value) {
     busy = value;
-    input.disabled = value;
-    document.getElementById('new-conversation').disabled = value;
-    historyList.querySelectorAll('button').forEach(button => { button.disabled = value; });
-    sendButton.disabled = value || !input.value.trim();
+    input.disabled = value || voiceBusy;
+    sendButton.disabled = value || voiceBusy || !input.value.trim();
+    window.dispatchEvent(new Event('mindcare:busy'));
   }
   function showError(error) {
     errorBox.replaceChildren(document.createTextNode(error.message));
@@ -65,7 +76,7 @@
     const count = document.getElementById('character-count');
     count.textContent = `${input.value.length.toLocaleString()} / 4,000`;
     count.hidden = input.value.length < 500;
-    sendButton.disabled = busy || !input.value.trim();
+    sendButton.disabled = busy || voiceBusy || !input.value.trim();
   }
   function scrollBottom() { scrollArea.scrollTop = scrollArea.scrollHeight; }
   function setDrawer(open, restoreFocus = true) {
@@ -106,12 +117,12 @@
       removeButton.setAttribute('aria-label', `Delete ${conversation.title}`);
       removeButton.append(svg('delete'));
       removeButton.addEventListener('click', () => {
-        if (busy) return;
+        cancelActivity();
         deleteId = conversation.id;
         deleteDialog.returnValue = '';
         deleteDialog.showModal();
       });
-      openButton.disabled = removeButton.disabled = busy;
+
       row.append(openButton, removeButton);
       historyList.append(row);
     });
@@ -132,17 +143,24 @@
     scrollBottom();
   }
   async function openConversation(id) {
-    if (busy) return;
+    cancelActivity();
+    const generation = epoch;
+    const controller = activeRequest = new AbortController();
     setBusy(true);
     errorBox.hidden = true;
     try {
-      const data = await request(`/api/conversations/${id}`);
+      const data = await request(`/api/conversations/${id}`, {signal: controller.signal});
+      if (generation !== epoch) return;
+      input.value = '';
+      retry = null;
       setConversation(data.conversation);
       setDrawer(false, false);
-    } catch (error) { showError(error); }
-    finally { setBusy(false); input.focus(); }
+    } catch (error) { if (error.name !== 'AbortError' && generation === epoch) showError(error); }
+    finally { if (generation === epoch) { setBusy(false); updateInput(); input.focus(); } }
   }
   function resetConversation() {
+    cancelActivity();
+    retry = null;
     conversationId = null;
     title.textContent = 'Your space to reflect';
     messages.replaceChildren();
@@ -153,21 +171,26 @@
     renderHistory();
   }
   document.getElementById('new-conversation').addEventListener('click', async () => {
-    if (busy) return;
+    cancelActivity();
+    const generation = epoch;
+    const controller = activeRequest = new AbortController();
     setBusy(true);
     errorBox.hidden = true;
     try {
-      const data = await request('/api/conversations/new', {method: 'POST'});
+      const data = await request('/api/conversations/new', {method: 'POST', signal: controller.signal});
+      if (generation !== epoch) return;
+      retry = null;
       input.value = '';
       updateInput();
       setConversation({...data.conversation, messages: []});
       await refreshHistory();
       setDrawer(false, false);
-    } catch (error) { showError(error); }
-    finally { setBusy(false); input.focus(); }
+    } catch (error) { if (error.name !== 'AbortError' && generation === epoch) showError(error); }
+    finally { if (generation === epoch) { setBusy(false); updateInput(); input.focus(); } }
   });
   deleteDialog.addEventListener('close', async () => {
-    if (deleteDialog.returnValue !== 'delete' || !deleteId || busy) return;
+    if (deleteDialog.returnValue !== 'delete' || !deleteId) return;
+    cancelActivity();
     setBusy(true);
     errorBox.hidden = true;
     try {
@@ -209,6 +232,7 @@
       const avatar = element('span', 'bot-avatar');
       avatar.append(svg('mark'));
       heading.append(avatar, document.createTextNode('MindCare'));
+      heading.append(element('span', 'provider-label', {gemini: 'Gemini', local_fallback: 'Local fallback', safety: 'Safety support'}[message.provider] || 'Local support'));
       article.append(heading);
     }
     article.append(element('div', 'message-body', message.content));
@@ -232,6 +256,13 @@
       time.dateTime = message.created_at;
       article.append(time);
     }
+    if (bot && message.id) {
+      const speak = element('button', 'speech-button', 'Read reply aloud');
+      speak.type = 'button';
+      speak.hidden = !window.mindcare.voice?.available;
+      speak.addEventListener('click', () => window.mindcare.voice?.speak(message.id));
+      article.append(speak);
+    }
     messages.append(article);
     return article;
   }
@@ -249,7 +280,7 @@
     return article;
   }
   document.querySelectorAll('[data-suggestion]').forEach(button => button.addEventListener('click', () => {
-    if (busy) return;
+    if (busy || voiceBusy) return;
     input.value = button.dataset.suggestion;
     updateInput();
     input.focus();
@@ -261,10 +292,23 @@
       if (!sendButton.disabled) document.getElementById('chat-form').requestSubmit();
     }
   });
-  document.getElementById('chat-form').addEventListener('submit', async event => {
-    event.preventDefault();
-    const text = input.value.trim();
-    if (busy || !text) return;
+  async function ensureConversation(signal) {
+    if (!conversationId) {
+      const generation = epoch;
+      const created = await request('/api/conversations/new', {method: 'POST', signal});
+      if (generation !== epoch || signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+      conversationId = created.conversation_id;
+      history.replaceState(null, '', `/conversations/${conversationId}`);
+    }
+    return conversationId;
+  }
+  async function submitMessage(text, {inputMode = 'text', signal, useGemini = false} = {}) {
+    if (busy) throw new Error('Please wait for the current message.');
+    const generation = epoch;
+    const controller = activeRequest = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, {once: true});
+    if (signal?.aborted) abort();
     setBusy(true);
     errorBox.hidden = true;
     emptyState.hidden = true;
@@ -273,44 +317,67 @@
     input.value = '';
     updateInput();
     scrollBottom();
-    let saved = false;
     try {
-      if (!conversationId) {
-        const created = await request('/api/conversations/new', {method: 'POST'});
-        conversationId = created.conversation_id;
-        history.replaceState(null, '', `/conversations/${conversationId}`);
-      }
-      const data = await request('/api/chat', {method: 'POST', body: JSON.stringify({conversation_id: conversationId, message: text})});
-      saved = true;
+      const id = await ensureConversation(controller.signal);
+      // A transcript restored after a lost voice response is retried by the text composer.
+      // Preserve its original mode and request ID so it cannot save a second turn.
+      if (retry?.conversationId === id && retry.text === text && retry.useGemini === useGemini) inputMode = retry.inputMode;
+      const signature = JSON.stringify([id, text, inputMode, useGemini]);
+      if (retry?.signature !== signature) retry = {signature, id: crypto.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join(''), conversationId: id, text, inputMode, useGemini};
+      const data = await request('/api/chat', {method: 'POST', signal: controller.signal,
+        timeoutMs: window.mindcare.voice?.timeoutMs || 75000,
+        body: JSON.stringify({conversation_id: id, message: text, request_id: retry.id, input_mode: inputMode, use_gemini: useGemini})});
+      if (generation !== epoch || controller.signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+      retry = null;
       optimistic.remove();
       typing.remove();
-      data.messages.forEach(renderMessage);
+      // Replays carry stable message IDs, so recovering a lost response never duplicates the display.
+      data.messages.forEach(message => {
+        messages.querySelector(`[data-message-id="${message.id}"]`)?.remove();
+        renderMessage(message);
+      });
       title.textContent = data.title;
+      if (data.notice) showError(new Error(data.notice));
       scrollBottom();
-      await refreshHistory();
+      refreshHistory().catch(showError);
+      return data;
     } catch (error) {
-      typing.remove();
-      if (!saved) {
-        optimistic.remove();
+      optimistic.remove();
+      if (generation === epoch) {
         input.value = text;
-        // A disconnected response may still have committed. Reload before offering a retry.
-        if (conversationId && !error.status) {
-          try {
-            const recovered = await request(`/api/conversations/${conversationId}`);
-            setConversation(recovered.conversation);
-            error.message += ' History has been refreshed; check for your message before sending again.';
-          } catch { error.message += ' Reopen this conversation to check whether it was saved before retrying.'; }
-        }
         if (!messages.children.length) emptyState.hidden = false;
       }
-      showError(error);
+      throw error;
     } finally {
       typing.remove();
-      setBusy(false);
-      updateInput();
-      input.focus();
+      signal?.removeEventListener('abort', abort);
+      if (generation === epoch) { activeRequest = null; setBusy(false); updateInput(); }
     }
+  }
+  document.getElementById('chat-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (busy || voiceBusy || !text) return;
+    const generation = epoch;
+    try {
+      const useGemini = await window.mindcare.voice?.ensureConsent(false) || false;
+      if (generation !== epoch) return;
+      await submitMessage(text, {useGemini});
+    } catch (error) { if (error.name !== 'AbortError' && generation === epoch) showError(error); }
+    if (generation === epoch) input.focus();
   });
+  window.mindcare.chat = {
+    ensureConversation, submitMessage,
+    get conversationId() { return conversationId; },
+    get busy() { return busy; },
+    setVoiceBusy(value) { voiceBusy = value; setBusy(busy); },
+    setDraft(text) { input.value = text; updateInput(); },
+    cancel: cancelActivity
+  };
+  window.addEventListener('mindcare:capabilities', () => {
+    messages.querySelectorAll('.speech-button').forEach(button => { button.hidden = !window.mindcare.voice?.available; });
+  });
+  window.addEventListener('pagehide', cancelActivity);
 
   async function initialize() {
     setBusy(true);

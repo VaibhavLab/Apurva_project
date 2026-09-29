@@ -1,8 +1,9 @@
+import io
 import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Request, jsonify, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFError
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
@@ -11,10 +12,20 @@ from app.config import Config
 from app.extensions import csrf, db, login_manager
 
 
+class MemoryUploadRequest(Request):
+    def _get_file_stream(self, total_content_length, content_type, filename=None, content_length=None):
+        # The route's total request limit is installed before CSRF parses multipart.
+        # Keep raw recordings in bounded memory instead of Werkzeug's temporary files.
+        if self.path == "/api/voice/transcribe":
+            return io.BytesIO()
+        return super()._get_file_stream(total_content_length, content_type, filename, content_length)
+
+
 def create_app(test_config: dict | None = None) -> Flask:
     """Create an independently configurable app with a local development database."""
     load_dotenv()
     app = Flask(__name__, instance_relative_config=True)
+    app.request_class = MemoryUploadRequest
     app.config.from_object(Config)
     app.config.update(Config.environment())
     if test_config:
@@ -34,6 +45,14 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     db.init_app(app)
     login_manager.init_app(app)
+    # Set multipart limits before Flask-WTF reads request.form.
+    @app.before_request
+    def audio_upload_limit():
+        if request.endpoint == "voice.transcribe":
+            request.max_content_length = app.config["VOICE_MAX_UPLOAD_BYTES"] + 16384
+            request.max_form_memory_size = 131072
+            request.max_form_parts = 5
+
     csrf.init_app(app)
     login_manager.login_view = "auth.login"
 
@@ -42,8 +61,27 @@ def create_app(test_config: dict | None = None) -> Flask:
     from app.routes.chat import chat_bp
     from app.routes.conversations import conversation_bp
     from app.routes.main import main_bp
+    from app.routes.voice import voice_bp
+    from app.services.gemini_service import ProviderError
+    from app.services.rate_limit_service import ProviderRateLimiter
+    from app.migrations import upgrade_voice_schema
 
-    for blueprint in (main_bp, auth_bp, chat_bp, conversation_bp):
+    app.extensions["provider_limiter"] = ProviderRateLimiter()
+
+    @app.cli.command("upgrade-db")
+    def upgrade_db():
+        """Add voice metadata without dropping existing users or messages."""
+        upgrade_voice_schema()
+        print("Voice schema is up to date. Existing history was preserved.")
+
+    @app.errorhandler(ProviderError)
+    def provider_error(error):
+        response = jsonify(success=False, error=str(error), code=error.code)
+        if error.status == 429:
+            response.headers["Retry-After"] = "60"
+        return response, error.status
+
+    for blueprint in (main_bp, auth_bp, chat_bp, conversation_bp, voice_bp):
         app.register_blueprint(blueprint)
 
     @login_manager.user_loader
@@ -96,7 +134,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-            "connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            "media-src 'self' blob:; worker-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         )
         response.headers["Cache-Control"] = "no-store"
         if app.config["SESSION_COOKIE_SECURE"]:

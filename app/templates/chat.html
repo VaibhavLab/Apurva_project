@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}Your space — MindCare{% endblock %}
 {% block body_class %}chat-page{% endblock %}
-{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">{% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}" defer></script>{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/voice.css') }}">{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/chat.js') }}" defer></script><script src="{{ url_for('static', filename='js/audio-capture.js') }}" defer></script><script src="{{ url_for('static', filename='js/voice.js') }}" defer></script>{% endblock %}
 {% block navigation %}{% endblock %}{% block footer %}{% endblock %}
 {% block content %}
 <div class="chat-app" data-conversation-id="{{ conversation_id }}">
@@ -23,9 +23,30 @@
       </section>
       <div class="messages" id="messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation messages"></div>
     </div>
-    <div class="composer-area"><div class="toast" id="chat-error" role="alert" hidden></div><form id="chat-form" class="composer"><label class="sr-only" for="message-input">Your message</label><textarea id="message-input" rows="1" maxlength="4000" placeholder="What's on your mind?" required></textarea><div class="composer-bottom"><span class="composer-hint">A little reflection can go a long way.</span><span id="character-count" hidden>0 / 4,000</span><button type="submit" id="send-button" aria-label="Send message" disabled>{{ icon('send') }}</button></div></form><p class="composer-disclaimer">MindCare offers wellness support, not professional care. <a href="{{ url_for('main.about') }}#safety">Need urgent help?</a></p></div>
+    <div class="composer-area"><section class="voice-panel" id="voice-panel" aria-label="Voice controls" data-state="idle">
+      <div class="voice-controls">
+        <button type="button" id="dictation-button" disabled>Mic · Dictate</button>
+        <button type="button" id="voice-button" disabled>Voice conversation</button>
+        <button type="button" id="voice-stop" hidden>Stop recording</button>
+        <button type="button" id="voice-cancel" hidden>Stop / cancel</button>
+        <button type="button" id="voice-end" hidden>End voice</button>
+        <button type="button" id="voice-play" hidden>Play reply</button>
+        <button type="button" id="voice-replay" hidden>Retry speech</button>
+        <button type="button" id="ai-settings" hidden>AI &amp; voice settings</button>
+      </div>
+      <meter id="voice-level" min="0" max="1" value="0" aria-label="Microphone level" hidden></meter><span id="voice-timer" hidden></span>
+      <p id="voice-status" role="status" aria-live="polite">Loading voice settings…</p>
+    </section><div class="toast" id="chat-error" role="alert" hidden></div><form id="chat-form" class="composer"><label class="sr-only" for="message-input">Your message</label><textarea id="message-input" rows="1" maxlength="4000" placeholder="What's on your mind?" required></textarea><div class="composer-bottom"><span class="composer-hint">A little reflection can go a long way.</span><span id="character-count" hidden>0 / 4,000</span><button type="submit" id="send-button" aria-label="Send message" disabled>{{ icon('send') }}</button></div></form><p class="composer-disclaimer">MindCare offers wellness support, not professional care. <a href="{{ url_for('main.about') }}#safety">Need urgent help?</a></p></div>
   </main>
 </div>
 <dialog id="delete-dialog"><form method="dialog"><span class="eyebrow">YOUR CONVERSATIONS</span><h2>Delete this conversation?</h2><p>Its messages will be permanently removed from your history. This can't be undone.</p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Keep conversation</button><button class="button button-danger" value="delete">Delete conversation</button></div></form></dialog>
+<dialog id="voice-consent" aria-labelledby="consent-title">
+  <span class="eyebrow">YOUR CHOICE</span><h2 id="consent-title">Use Google Gemini?</h2>
+  <p>AI chat sends your message and a limited amount of this conversation's history to Google. Voice sends your recording for transcription; reading a reply aloud sends that reply for speech generation.</p>
+  <p>MindCare does not store raw recordings or generated audio. Sent transcripts and replies are saved in your conversation history. Google's processing and retention depend on its terms and your account configuration; they are not controlled by MindCare.</p>
+  <p>Voice conversations happen one recorded turn at a time, up to 30 seconds. MindCare provides wellness support, not diagnosis or emergency care. You can change this choice using AI &amp; voice settings.</p>
+  <p id="consent-error" role="alert" hidden></p>
+  <div class="dialog-actions"><button type="button" class="button button-primary" id="consent-accept">Allow Google processing</button><button type="button" class="button button-secondary" id="consent-decline">Use local text only</button></div>
+</dialog>
 <noscript><div class="noscript-notice">Enable JavaScript to use the chat dashboard.</div></noscript>
 {% endblock %}

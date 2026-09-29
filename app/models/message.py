@@ -13,6 +13,8 @@ class Message(db.Model):
     sentiment_score = db.Column(db.Float, nullable=False, default=0)
     risk_level = db.Column(db.String(10), nullable=False, default="normal")
     topic = db.Column(db.String(30), nullable=False, default="general")
+    input_mode = db.Column(db.String(10), nullable=False, default="text", server_default="text")
+    provider = db.Column(db.String(20), nullable=False, default="local", server_default="local")
     recommendations = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     conversation = db.relationship("Conversation", back_populates="messages")
@@ -26,4 +28,5 @@ class Message(db.Model):
         return {"id": self.id, "sender": self.sender, "content": self.content,
                 "sentiment": {"label": self.sentiment, "score": self.sentiment_score},
                 "risk_level": self.risk_level, "topic": self.topic,
+                "input_mode": self.input_mode, "provider": self.provider,
                 "recommendations": self.recommendations, "created_at": self.created_at.isoformat() + "Z"}
